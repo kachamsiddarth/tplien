@@ -1,6 +1,7 @@
 require("dotenv").config();
 
 const axios = require("axios");
+const cors = require("cors");
 const express = require("express");
 const mongoose = require("mongoose");
 
@@ -12,6 +13,9 @@ const PORT = process.env.PORT || 3002;
 const uri = process.env.MONGO_URL;
 
 const app = express();
+app.use(cors());
+
+
 app.get("/allHoldings", async (req, res) => {
     try {
         const allHoldings = await HoldingsModel.find({});
