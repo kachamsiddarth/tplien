@@ -13,6 +13,7 @@ const HoldingsSchema = new mongoose.Schema({
     percentChange: Number
 });
 
+
 const HoldingsModel = mongoose.model("holding", HoldingsSchema);
 
 module.exports = { HoldingsModel };

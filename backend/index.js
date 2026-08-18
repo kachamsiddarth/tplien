@@ -14,6 +14,7 @@ const uri = process.env.MONGO_URL;
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 
 
 app.get("/allHoldings", async (req, res) => {
@@ -36,7 +37,7 @@ app.get("/allHoldings", async (req, res) => {
                     };
                 }
 
-                const currentPrice = stock.nsePrice;
+                const currentPrice = stock.nsePrice || stock.bsePrice;
 
                 const investment = holding.qty * holding.avg;
 
@@ -65,6 +66,35 @@ app.get("/allHoldings", async (req, res) => {
         });
     }
 });
+
+
+
+app.get("/allHoldings", async (req, res) => {
+    // your existing code
+});
+
+
+app.post("/allHoldings", async (req, res) => {
+    try {
+        const newHolding = new HoldingsModel({
+            name: req.body.name,
+            qty: req.body.qty,
+            avg: req.body.avg
+        });
+
+        await newHolding.save();
+
+        res.json(newHolding);
+
+    } catch (error) {
+        res.status(500).json({
+            message: "Failed to add holding",
+            error: error.message
+        });
+    }
+});
+
+
 
 
 app.get("/allPositions", async (req, res) => {
@@ -113,8 +143,8 @@ app.get("/api/stocks/:symbol", async (req, res) => {
                 updatedAt: new Date()
             },
             {
-                new: true,
-                upsert: true
+                upsert: true,
+                new: true
             }
         );
 
