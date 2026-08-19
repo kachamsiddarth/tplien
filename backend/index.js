@@ -8,6 +8,7 @@ const mongoose = require("mongoose");
 const { HoldingsModel } = require("./models/HoldingsModel");
 const { PositionsModel } = require("./models/PositionsModel");
 const { StockModel } = require("./models/StockModel");
+const { OrdersModel } = require("./models/OrdersModel");
 
 const PORT = process.env.PORT || 3002;
 const uri = process.env.MONGO_URL;
@@ -15,6 +16,35 @@ const uri = process.env.MONGO_URL;
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+
+app.get("/api/trending", async (req, res) => {
+    try {
+        const response = await axios.get(
+            "https://stock.indianapi.in/trending",
+            {
+                headers: {
+                    "X-API-Key": process.env.STOCK_API_KEY
+                }
+                //KEY ATTRIBUTES: STOCK | PRICE | CHANGE | CHANGE % | VOLUME | TREND 
+            }
+        );
+
+        res.json(response.data);
+
+    } catch (error) {
+        console.log(
+            "Trending API error:",
+            error.response?.data || error.message
+        );
+
+        res.status(500).json({
+            message: "Failed to fetch trending stocks",
+            error: error.response?.data || error.message
+        });
+    }
+});
+
 
 
 app.get("/allHoldings", async (req, res) => {
@@ -69,30 +99,45 @@ app.get("/allHoldings", async (req, res) => {
 
 
 
-app.get("/allHoldings", async (req, res) => {
-    // your existing code
-});
 
 
-app.post("/allHoldings", async (req, res) => {
+
+app.post("/addOrder", async (req, res) => {
     try {
-        const newHolding = new HoldingsModel({
+        const newOrder = new OrdersModel({
             name: req.body.name,
             qty: req.body.qty,
-            avg: req.body.avg
+            price:req.body.price,
+            mode:req.body.mode
         });
 
-        await newHolding.save();
+        await newOrder.save();
 
-        res.json(newHolding);
+        res.json(newOrder);
 
     } catch (error) {
         res.status(500).json({
             message: "Failed to add holding",
+            error: error.messageSSSS
+        });
+    }
+});
+
+
+app.get("/allOrders", async (req, res) => {
+    try {
+        const allOrders = await OrdersModel.find({});
+        res.json(allOrders);
+    } catch (error) {
+        res.status(500).json({
+            message: "Failed to fetch positions",
             error: error.message
         });
     }
 });
+
+
+
 
 
 
