@@ -26,7 +26,7 @@ app.get("/api/trending", async (req, res) => {
                 headers: {
                     "X-API-Key": process.env.STOCK_API_KEY
                 }
-                //KEY ATTRIBUTES: STOCK | PRICE | CHANGE | CHANGE % | VOLUME | TREND 
+                
             }
         );
 
@@ -102,13 +102,13 @@ app.get("/allHoldings", async (req, res) => {
 
 
 
-app.post("/addOrder", async (req, res) => {
+app.post("/allOrders", async (req, res) => {
     try {
         const newOrder = new OrdersModel({
             name: req.body.name,
             qty: req.body.qty,
-            price:req.body.price,
-            mode:req.body.mode
+            price: req.body.price,
+            mode: req.body.mode
         });
 
         await newOrder.save();
@@ -117,8 +117,8 @@ app.post("/addOrder", async (req, res) => {
 
     } catch (error) {
         res.status(500).json({
-            message: "Failed to add holding",
-            error: error.messageSSSS
+            message: "Failed to place order",
+            error: error.message
         });
     }
 });

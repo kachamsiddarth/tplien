@@ -1,16 +1,31 @@
 import React, { useEffect, useState } from 'react';
-import { getHoldings, getPositions } from '../services/api';
-import { Wallet, Activity, PieChart, RefreshCw, ArrowUpRight } from 'lucide-react';
-import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Title } from 'chart.js';
-import { Doughnut, Line } from 'react-chartjs-2';
+import { getHoldings, getPositions, getTrending } from '../services/api';
+import {
+  Wallet, Activity, PieChart, RefreshCw, ArrowUpRight,
+  TrendingUp, TrendingDown, Flame
+} from 'lucide-react';
+import {
+  Chart as ChartJS,
+  ArcElement, Tooltip, Legend,
+  CategoryScale, LinearScale,
+  BarElement, Title
+} from 'chart.js';
+import { Bar, Doughnut } from 'react-chartjs-2';
 import { Link } from 'react-router-dom';
 import './Dashboard.css';
 
-ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement, Title);
+ChartJS.register(
+  ArcElement, Tooltip, Legend,
+  CategoryScale, LinearScale,
+  BarElement, Title
+);
+
+const NEO_COLORS = ['#FFE14A', '#00E699', '#C8A7FF', '#FF8FD8', '#FF8A3D', '#65B7FF', '#FF6B6B', '#4ECDC4', '#95E1D3', '#F38181'];
 
 const Dashboard = () => {
   const [holdings, setHoldings] = useState([]);
   const [positions, setPositions] = useState([]);
+  const [trending, setTrending] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -18,15 +33,48 @@ const Dashboard = () => {
     try {
       setLoading(true);
       setError(null);
-      const [holdingsData, positionsData] = await Promise.all([
+
+      const [holdingsData, positionsData, trendingRaw] = await Promise.all([
         getHoldings(),
-        getPositions()
+        getPositions(),
+        getTrending()
       ]);
+
       setHoldings(holdingsData);
       setPositions(positionsData);
+
+      // ── REAL API SHAPE ──────────────────────────────────────────────────────
+      // { "trending_stocks": { "top_gainers": [...], "top_losers": [...], ... } }
+      // ────────────────────────────────────────────────────────────────────────
+      let stocks = [];
+
+      if (Array.isArray(trendingRaw)) {
+        stocks = trendingRaw;
+      } else if (trendingRaw?.trending_stocks) {
+        const ts = trendingRaw.trending_stocks;
+        // Merge all sub-lists (top_gainers, top_losers, etc.)
+        stocks = [
+          ...(ts.top_gainers || []),
+          ...(ts.top_losers || []),
+          ...(ts.most_active || []),
+          ...(ts.trending || []),
+        ];
+      } else {
+        // Fallback: try common key names
+        stocks =
+          trendingRaw?.data ||
+          trendingRaw?.stocks ||
+          trendingRaw?.trending ||
+          trendingRaw?.top_gainers ||
+          [];
+      }
+
+      console.log('[Dashboard] Trending stocks extracted:', stocks.length, stocks[0]);
+      setTrending(stocks);
+
     } catch (err) {
-      console.error("Failed to load dashboard data:", err);
-      setError("Unable to connect to backend server at http://localhost:3002. Make sure backend is running.");
+      console.error('Failed to load dashboard data:', err);
+      setError('Unable to connect to backend server at http://localhost:3002. Make sure backend is running.');
     } finally {
       setLoading(false);
     }
@@ -36,42 +84,103 @@ const Dashboard = () => {
     fetchData();
   }, []);
 
-  // Dynamic Portfolio Calculations from backend holdings
+  // ── Portfolio Calculations ────────────────────────────────────────────────
   const totalInvestment = holdings.reduce((sum, h) => sum + ((h.avg || 0) * (h.qty || 0)), 0);
-  const currentValue = holdings.reduce((sum, h) => sum + ((h.price || 0) * (h.qty || 0)), 0);
-  const totalPnl = currentValue - totalInvestment;
-  const pnlPercentage = totalInvestment > 0 ? (totalPnl / totalInvestment) * 100 : 0;
+  const currentValue    = holdings.reduce((sum, h) => sum + ((h.price || 0) * (h.qty || 0)), 0);
+  const totalPnl        = currentValue - totalInvestment;
+  const pnlPercentage   = totalInvestment > 0 ? (totalPnl / totalInvestment) * 100 : 0;
 
-  // Doughnut Chart Data (Neobrutalist palette)
-  const doughnutData = {
-    labels: holdings.map(h => h.name),
-    datasets: [
-      {
-        data: holdings.map(h => (h.price || 0) * (h.qty || 0)),
-        backgroundColor: ['#FFE14A', '#00E699', '#C8A7FF', '#FF8FD8', '#FF8A3D', '#65B7FF'],
-        borderColor: '#111111',
-        borderWidth: 3,
-      },
-    ],
+  // ── CHART 1: Trending % Change Bar Chart ─────────────────────────────────
+  // Shows percent_change for each trending stock
+  const chartStocks = trending.slice(0, 10); // cap at 10 for readability
+  const barData = {
+    // ticker_id is a numeric BSE code — use company_name for readable labels
+    labels: chartStocks.map(s => s.company_name || s.companyName || s.ticker_id || s.symbol || '?'),
+    datasets: [{
+      label: '% Change',
+      data: chartStocks.map(s => parseFloat(s.percent_change || s.percentChange || 0)),
+      backgroundColor: chartStocks.map((s) => {
+        const pct = parseFloat(s.percent_change || s.percentChange || 0);
+        return pct >= 0 ? 'rgba(0,230,153,0.85)' : 'rgba(255,77,77,0.85)';
+      }),
+      borderColor: '#111111',
+      borderWidth: 2,
+      borderRadius: 4,
+    }],
   };
 
-  const lineData = {
-    labels: ['Start', '9:30', '11:30', '1:30', '3:30', 'Close'],
-    datasets: [
-      {
-        label: 'Portfolio Value Trend',
-        data: [totalInvestment, totalInvestment * 1.02, totalInvestment * 0.98, currentValue * 0.99, currentValue],
-        borderColor: '#111111',
-        backgroundColor: '#00E699',
-        tension: 0.2,
-        borderWidth: 4,
-        pointBackgroundColor: '#FFE14A',
-        pointBorderColor: '#111111',
-        pointRadius: 6,
+  const barOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: (ctx) => ` ${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}%`,
+        },
       },
-    ],
+    },
+    scales: {
+      x: {
+        ticks: { color: '#333', font: { weight: '700', size: 11 } },
+        grid: { display: false },
+      },
+      y: {
+        ticks: {
+          color: '#333',
+          callback: (v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`,
+        },
+        grid: { color: 'rgba(0,0,0,0.07)' },
+      },
+    },
   };
 
+  // ── CHART 2: Trending Volume Doughnut ─────────────────────────────────────
+  // Shows volume distribution among trending stocks (falls back to holdings if no trending)
+  const doughnutStocks = trending.length > 0 ? trending.slice(0, 8) : null;
+
+  const doughnutData = doughnutStocks
+    ? {
+        labels: doughnutStocks.map(s => s.company_name || s.companyName || s.ticker_id || '?'),
+        datasets: [{
+          data: doughnutStocks.map(s => parseFloat(s.volume || 0)),
+          backgroundColor: NEO_COLORS.slice(0, doughnutStocks.length),
+          borderColor: '#111111',
+          borderWidth: 2,
+        }],
+      }
+    : {
+        labels: holdings.map(h => h.name),
+        datasets: [{
+          data: holdings.map(h => (h.price || 0) * (h.qty || 0)),
+          backgroundColor: NEO_COLORS.slice(0, holdings.length),
+          borderColor: '#111111',
+          borderWidth: 3,
+        }],
+      };
+
+  // ── Trend Badge ───────────────────────────────────────────────────────────
+  const getTrendBadge = (trend) => {
+    if (!trend) return <span className="neo-badge neo-badge-neutral">—</span>;
+    const t = String(trend).toLowerCase();
+    if (t.includes('bull') || t.includes('up') || t.includes('strong') || t.includes('positive') || t.includes('buy')) {
+      return (
+        <span className="neo-badge neo-badge-green" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+          <TrendingUp size={11} /> {trend}
+        </span>
+      );
+    }
+    if (t.includes('bear') || t.includes('down') || t.includes('weak') || t.includes('negative') || t.includes('sell')) {
+      return (
+        <span className="neo-badge neo-badge-red" style={{ display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+          <TrendingDown size={11} /> {trend}
+        </span>
+      );
+    }
+    return <span className="neo-badge neo-badge-neutral">{trend}</span>;
+  };
+
+  // ── Loading / Error ───────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="dashboard-loading">
@@ -93,24 +202,28 @@ const Dashboard = () => {
 
   return (
     <div className="dashboard-page">
+
+      {/* PAGE HEADER */}
       <div className="dashboard-header">
         <div>
           <h1 className="dashboard-title">TRADING TERMINAL</h1>
-          <p className="dashboard-subtitle">Overview of your real-time holdings and market positions</p>
+          <p className="dashboard-subtitle">Real-time market trends and portfolio overview</p>
         </div>
         <button onClick={fetchData} className="neo-btn neo-btn-yellow">
           <RefreshCw size={16} /> REFRESH
         </button>
       </div>
 
-      {/* METRIC CARDS GRID */}
+      {/* METRIC CARDS */}
       <div className="metrics-grid">
         <div className="neo-card metric-card metric-card-yellow">
           <div className="metric-header">
             <span>Portfolio Value</span>
             <Wallet size={24} color="#111" />
           </div>
-          <div className="metric-value">₹{currentValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</div>
+          <div className="metric-value">
+            ₹{currentValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
+          </div>
           <div className="metric-footer">
             Invested: ₹{totalInvestment.toLocaleString('en-IN', { maximumFractionDigits: 2 })}
           </div>
@@ -143,73 +256,137 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* CHARTS & PREVIEW GRID */}
+      {/* CHARTS — driven by trending data */}
       <div className="dashboard-charts-grid">
+
+        {/* BAR CHART: Trending % Change */}
         <div className="neo-card chart-card">
-          <h3>PORTFOLIO PERFORMANCE TREND</h3>
+          <h3>
+            TRENDING STOCKS — % CHANGE
+            {chartStocks.length > 0 && (
+              <span style={{ fontWeight: 600, fontSize: '0.8rem', marginLeft: '0.5rem', color: '#555' }}>
+                (top {chartStocks.length})
+              </span>
+            )}
+          </h3>
           <div className="chart-wrapper">
-            <Line data={lineData} options={{ responsive: true, maintainAspectRatio: false }} />
+            {chartStocks.length > 0 ? (
+              <Bar data={barData} options={barOptions} />
+            ) : (
+              <p className="no-data">No trending data loaded yet.</p>
+            )}
           </div>
         </div>
 
+        {/* DOUGHNUT: Volume distribution */}
         <div className="neo-card chart-card">
-          <h3>ASSET ALLOCATION</h3>
+          <h3>
+            {doughnutStocks ? 'TRENDING VOLUME SHARE' : 'ASSET ALLOCATION'}
+          </h3>
           <div className="chart-wrapper">
-            {holdings.length > 0 ? (
+            {(doughnutStocks ? doughnutStocks.length : holdings.length) > 0 ? (
               <Doughnut data={doughnutData} options={{ responsive: true, maintainAspectRatio: false }} />
             ) : (
-              <p className="no-data">No active holdings to chart.</p>
+              <p className="no-data">No data to display.</p>
             )}
           </div>
         </div>
       </div>
 
-      {/* TOP HOLDINGS PREVIEW TABLE */}
+      {/* TRENDING STOCKS TABLE */}
       <div className="neo-card table-card">
         <div className="table-card-header">
-          <h3>TOP HOLDINGS SUMMARY</h3>
-          <Link to="/holdings" className="neo-btn neo-btn-cyan">VIEW ALL ({holdings.length})</Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <Flame size={20} color="#111" />
+            <h3 style={{ margin: 0 }}>
+              TRENDING STOCKS
+              {trending.length > 0 && (
+                <span style={{ fontWeight: 600, fontSize: '0.85rem', marginLeft: '0.5rem', color: '#555' }}>
+                  ({trending.length} stocks)
+                </span>
+              )}
+            </h3>
+          </div>
+          <span className="neo-badge neo-badge-yellow">LIVE MARKET DATA</span>
         </div>
+
         <div className="table-wrapper">
           <table className="tepline-table">
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th>Qty</th>
-                <th>Avg. Price</th>
-                <th>Current Price</th>
-                <th>Current Value</th>
-                <th>P&L</th>
+                <th>Stock / Company</th>
+                <th>Price</th>
+                <th>Change %</th>
+                <th>Net Change</th>
+                <th>Volume</th>
+                <th>Short Trend</th>
+                <th>Long Trend</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
-              {holdings.slice(0, 5).map((h, i) => {
-                const inv = (h.avg || 0) * (h.qty || 0);
-                const cur = (h.price || 0) * (h.qty || 0);
-                const pnl = cur - inv;
-                return (
-                  <tr key={i}>
-                    <td className="font-bold">{h.name}</td>
-                    <td>{h.qty}</td>
-                    <td>₹{h.avg}</td>
-                    <td>₹{h.price}</td>
-                    <td>₹{cur.toFixed(2)}</td>
-                    <td className={pnl >= 0 ? 'text-green' : 'text-red'}>
-                      {pnl >= 0 ? '+' : ''}₹{pnl.toFixed(2)}
-                    </td>
-                    <td>
-                      <Link to={`/stock/${h.name}`} className="neo-badge neo-badge-yellow" style={{ textDecoration: 'none' }}>
-                        VIEW <ArrowUpRight size={14} />
-                      </Link>
-                    </td>
-                  </tr>
-                );
-              })}
+              {trending.length > 0 ? (
+                trending.map((s, i) => {
+                  const pct      = parseFloat(s.percent_change || s.percentChange || 0);
+                  const net      = parseFloat(s.net_change     || s.netChange     || 0);
+                  const rawPrice = s.price || s.currentPrice   || s.last_price;
+                  const priceDisplay = rawPrice != null
+                    ? `₹${Number(rawPrice).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    : '—';
+                  const volume   = s.volume
+                    ? Number(s.volume).toLocaleString('en-IN')
+                    : '—';
+
+                  // ticker_id is a numeric BSE code — company_name is the real identifier
+                  // The backend /api/stocks/:symbol expects the company name (e.g. 'HCL Technologies')
+                  const company  = s.company_name || s.companyName || '';
+                  const bseCode  = s.ticker_id    || s.symbol      || '';
+                  const navSymbol = encodeURIComponent(company || bseCode);
+
+                  return (
+                    <tr key={`${bseCode}-${i}`}>
+                      <td>
+                        <div className="font-bold">{company || bseCode}</div>
+                        {bseCode && company && (
+                          <div style={{ fontSize: '0.75rem', color: '#888', fontWeight: 600 }}>BSE: {bseCode}</div>
+                        )}
+                      </td>
+                      <td className="font-bold">{priceDisplay}</td>
+                      <td className={pct >= 0 ? 'text-green font-bold' : 'text-red font-bold'}>
+                        {pct >= 0 ? '+' : ''}{pct.toFixed(2)}%
+                      </td>
+                      <td className={net >= 0 ? 'text-green' : 'text-red'}>
+                        {net >= 0 ? '+' : ''}{net.toFixed(2)}
+                      </td>
+                      <td>{volume}</td>
+                      <td>{getTrendBadge(s.short_term_trends || s.shortTermTrend)}</td>
+                      <td>{getTrendBadge(s.long_term_trends  || s.longTermTrend)}</td>
+                      <td>
+                        {navSymbol ? (
+                          <Link
+                            to={`/stock/${navSymbol}`}
+                            className="neo-badge neo-badge-yellow"
+                            style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            VIEW <ArrowUpRight size={13} />
+                          </Link>
+                        ) : '—'}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="8" style={{ textAlign: 'center', padding: '2.5rem', color: '#555' }}>
+                    No trending data available. Check backend / API key.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
       </div>
+
     </div>
   );
 };

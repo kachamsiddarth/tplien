@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getHoldings } from '../services/api';
-import { RefreshCw, Search } from 'lucide-react';
+import { RefreshCw, Search, ArrowUpRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import '../pages/Dashboard.css';
 
 const Holdings = () => {
@@ -99,6 +100,7 @@ const Holdings = () => {
                 <th>P&L</th>
                 <th>Net Chg</th>
                 <th>Day Chg</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -119,12 +121,21 @@ const Holdings = () => {
                       </td>
                       <td><span className="neo-badge neo-badge-neutral">{h.net || '0%'}</span></td>
                       <td><span className="neo-badge neo-badge-success">{h.day || '0%'}</span></td>
+                      <td>
+                        <Link
+                          to={`/stock/${h.name}`}
+                          className="neo-badge neo-badge-yellow"
+                          style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        >
+                          VIEW <ArrowUpRight size={13} />
+                        </Link>
+                      </td>
                     </tr>
                   );
                 })
               ) : (
                 <tr>
-                  <td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                  <td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
                     No holdings found matching your search.
                   </td>
                 </tr>

@@ -25,4 +25,19 @@ export const getStockDetails = async (symbol) => {
   return response.data;
 };
 
+export const getTrending = async () => {
+  const response = await apiClient.get('/api/trending');
+  return response.data;
+};
+
+export const getOrders = async () => {
+  const response = await apiClient.get('/allOrders');
+  return response.data;
+};
+
+export const placeOrder = async (orderData) => {
+  const response = await apiClient.post('/allOrders', orderData);
+  return response.data;
+};
+
 export default apiClient;
