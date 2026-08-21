@@ -10,17 +10,18 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.1",
+    "@react-three/drei": "^9.112.0",
+    "@react-three/fiber": "^8.17.6",
     "axios": "^1.7.4",
     "chart.js": "^4.4.4",
-    "react-chartjs-2": "^5.2.0",
-    "three": "^0.168.0",
-    "@react-three/fiber": "^8.17.6",
-    "@react-three/drei": "^9.112.0",
     "framer-motion": "^11.5.4",
-    "lucide-react": "^0.439.0"
+    "lucide-react": "^0.439.0",
+    "react": "^18.3.1",
+    "react-chartjs-2": "^5.2.0",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "react-router-dom": "^6.26.1",
+    "three": "^0.168.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.3",

@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Navbar from './components/Navbar';
 import BottomNav from './components/BottomNav';
+import AIChat from './components/AIChat/AIChat';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Holdings from './pages/Holdings';
@@ -28,6 +29,7 @@ function App() {
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>
+        <AIChat />
         <BottomNav />
       </div>
     </Router>

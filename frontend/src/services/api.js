@@ -40,4 +40,9 @@ export const placeOrder = async (orderData) => {
   return response.data;
 };
 
+export const askAI = async (query) => {
+  const response = await apiClient.post('/api/ai', { query });
+  return response.data;
+};
+
 export default apiClient;
