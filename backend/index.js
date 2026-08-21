@@ -1,5 +1,9 @@
 require("dotenv").config();
+const Groq = require("groq-sdk");
 
+const groq=new Groq({
+    apiKey:process.env.GROQ_API_KEY
+})
 const axios = require("axios");
 const cors = require("cors");
 const express = require("express");
@@ -192,6 +196,7 @@ app.get("/api/stocks/:symbol", async (req, res) => {
                 new: true
             }
         );
+        
 
         res.json(stock);
 
@@ -232,6 +237,82 @@ app.get("/allStocks", async (req, res) => {
 
         res.status(500).json({
             message: "Failed to fetch stocks"
+        });
+    }
+});
+
+app.post("/api/ai", async (req, res) => {
+    try {
+        const { query } = req.body;
+
+        const holdings = await HoldingsModel.find({});
+        const orders = await OrdersModel.find({});
+        const stocks = await StockModel.find({});
+
+        const trendingResponse = await axios.get(
+            "https://stock.indianapi.in/trending",
+            {
+                headers: {
+                    "X-API-Key": process.env.STOCK_API_KEY
+                }
+            }
+        );
+
+        const trendingStocks = trendingResponse.data;
+
+        const prompt = `
+You are an AI assistant for a stock portfolio application.
+
+User question:
+${query}
+
+USER HOLDINGS:
+${JSON.stringify(holdings)}
+
+USER ORDERS:
+${JSON.stringify(orders)}
+
+CURRENT STOCK DATA:
+${JSON.stringify(stocks)}
+
+TRENDING STOCKS:
+${JSON.stringify(trendingStocks)}
+
+Analyze the provided information and answer the user's question.
+
+Use the user's holdings, orders, current stock data,
+and trending stocks when relevant.
+
+Do not invent financial data.
+If the provided data is insufficient, clearly say so.`;
+
+        const completion = await groq.chat.completions.create({
+            model: "openai/gpt-oss-20b",
+            messages: [
+                {
+                    role: "system",
+                    content: "You are a financial portfolio analysis assistant."
+                },
+                {
+                    role: "user",
+                    content: prompt
+                }
+            ]
+        });
+
+        res.json({
+            response: completion.choices[0].message.content
+        });
+
+    } catch (error) {
+        console.log(
+            "AI Error:",
+            error.response?.data || error.message
+        );
+
+        res.status(500).json({
+            message: "AI request failed",
+            error: error.response?.data || error.message
         });
     }
 });
